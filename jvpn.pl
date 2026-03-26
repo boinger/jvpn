@@ -22,6 +22,7 @@ use Getopt::Long;
 use HTTP::Cookies;
 use HTTP::Request::Common;
 use IO::Socket::INET;
+use IO::Socket::SSL qw();
 use LWP::UserAgent;
 use Term::ReadKey;
 use POSIX;
@@ -151,10 +152,9 @@ if( $> != 0 && !$is_setuid) {
 my $ua = LWP::UserAgent->new;
 # on RHEL6+ ssl_opts does exist
 if(defined &LWP::UserAgent::ssl_opts) {
-    $ua->ssl_opts('SSL_verify_mode' => IO::Socket::SSL::SSL_VERIFY_NONE);
     $ua->ssl_opts('verify_hostname' => $verifycert);
     if (!$verifycert) {
-      $ua->ssl_opts('SSL_verify_mode' => '0x00');
+      $ua->ssl_opts('SSL_verify_mode' => IO::Socket::SSL::SSL_VERIFY_NONE);
     }
 }
 $ua->cookie_jar({});
@@ -216,11 +216,11 @@ sub connect_vpn {
   my $password2 = '';
   if ($duo eq "push") {
     $password2 = "push";
-    (! -d $pulse_nc_dir) && mkdir -p $pulse_nc_dir;
+    mkpath($pulse_nc_dir) if (! -d $pulse_nc_dir);
   } elsif ($duo eq "key") {
     print "Enter Duo key: ";
     $password2 = read_input();
-    (! -d $pulse_nc_dir) && mkdir -p $pulse_nc_dir;
+    mkpath($pulse_nc_dir) if (! -d $pulse_nc_dir);
   }
 
   my $welcome_cgi="https://$dhost/dana-na/auth/$durl/welcome.cgi";
@@ -373,9 +373,9 @@ sub connect_vpn {
             #print "response_body: $response_body\n\n";
             my ($session_id, $ip, $login_time, $idle_time) = ($response_body =~ m/name="postfixSID"\s+value="([^"]+)"\/><\/td>\s+<td>([0-9.]+)<\/td>\s+<td>([^<]+)<\/td>\s+<td>([^<]+)<\/td>\s+<td>[^<]*$kick_string[^<]*<\/td>/);
             if ($session_id) {
-              ($debug) && print "Session_id being killed: $session_id from IP $ip\n";
               print "Session_id being killed: $session_id from IP $ip\n";
-              $cont_button =~ m/name="btnContinue" value="([^"]+)"/;
+              ($cont_button) = ($response_body =~ m/name="btnContinue" value="([^"]+)"/);
+
               $res = $ua->post("https://$dhost:$dport/dana-na/auth/$durl/login.cgi",
                 [
                   btnContinue => $cont_button,
@@ -403,7 +403,7 @@ sub connect_vpn {
             }
           }
         } else {
-          $cont_button =~ m/name="btnContinue" value="([^"]+)"/;
+          ($cont_button) = ($response_body =~ m/name="btnContinue" value="([^"]+)"/);
           print "Active sessions found, continuing anyway...\n";
           $res = $ua->post("https://$dhost:$dport/dana-na/auth/$durl/login.cgi",
             [
